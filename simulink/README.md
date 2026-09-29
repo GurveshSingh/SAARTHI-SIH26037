@@ -2,7 +2,7 @@
 
 This folder holds the MATLAB/Simulink side of SAARTHI: tracking, prediction, decision, planning and control. The ROS 2 workspace in `../ros2_ws` provides the world, the sensors, perception and the vehicle interface. This side does the thinking.
 
-> **Status:** POCs 1–6 run in simulation. The interface below is frozen. Model files (`.slx`) are committed here as each layer is finalised; until then this folder holds the interface spec and the bus definitions every layer builds against.
+> **Status:** POCs 1–6 run in simulation. The interface below is frozen. Model files (`.slx`) are committed here as each layer is finalised; until then this folder holds the interface spec and the bus definitions every layer builds , against.
 
 ## Requirements
 

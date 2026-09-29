@@ -62,7 +62,7 @@ class AmclNode : public nav2_util::LifecycleNode
 public:
   /*
    * @brief AMCL constructor
-   * @param options Additional options to control creation of the node.
+   * @param options Additional options to to control creation of the node.
    */
   explicit AmclNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
   /*
