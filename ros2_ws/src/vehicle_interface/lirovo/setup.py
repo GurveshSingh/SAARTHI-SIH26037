@@ -1,0 +1,44 @@
+from glob import glob
+
+from setuptools import find_packages, setup
+
+package_name = 'lirovo'
+
+setup(
+    name=package_name,
+    version='0.0.0',
+    packages=find_packages(exclude=['test']),
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/config', ['config/nav2_params.yaml']),
+        ('share/' + package_name + '/config', ['config/slam_params.yaml']),
+        ('share/' + package_name + '/config', ['config/localization.yaml']),
+        ('share/' + package_name + '/launch', ['launch/lirovo.launch.py']),
+        ('share/' + package_name + '/launch',
+        glob('launch/*.launch.py')),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='UASDTU',
+    maintainer_email='UASDTUtodo.todo',
+    description='Rover bringup: MAVROS bridge, cmd_vel to Cube Orange PWM, stack watchdog, startup report and mission manager.',
+    license='TODO: License declaration',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'mavros_bridge = lirovo.mavros_bridge:main',
+            'pointcloud_processor = lirovo.pointcloud_processor:main',
+            'navigator = lirovo.navigator:main',
+            'converter = lirovo.converter:main',
+            'stack_watchdog = lirovo.stack_watchdog:main',
+            'startup_report = lirovo.startup_report:main',
+            'mission_manager = lirovo.mission_manager:main',
+            'cmd_vel_to_pwm = lirovo.cmd_vel_to_pwm:main',
+            'cmd_vel_filter = lirovo.cmd_vel_filter:main',
+            'adaptive_velocity_controller = lirovo.adaptive_velocity_controller:main',
+
+        ],
+    },
+)

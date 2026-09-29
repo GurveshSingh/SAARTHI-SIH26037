@@ -1,0 +1,21 @@
+# colcon
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+# python
+__pycache__/
+*.pyc
+# logs and recordings
+*.tlog
+*.tlog.raw
+*.db3
+rosbag*/
+# MATLAB / Simulink
+*.asv
+*.slxc
+slprj/
+codegen/
+*_ert_rtw/
+*_grt_rtw/
+# OS
+.DS_Store
