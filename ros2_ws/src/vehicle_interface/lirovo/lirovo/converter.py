@@ -16,11 +16,9 @@ class Converter_Node(Node):
         self.linear_x = 0.0
         self.angular_z = 0.0
 
-
     def cmdvel_callback(self,msg):
         self.linear_x = msg.linear.x * 5
         self.angular_z = msg.angular.z * 3 *-1
-
 
     def converter_node(self):
         rc_msg = OverrideRCIn()
@@ -49,8 +47,6 @@ class Converter_Node(Node):
         else:
             pwm_angular=1501
 
-        #print(f"linear velocity is {self.linear_x}")
-        #print(f"angular velocity is {self.angular_z}")
         print(f"pwm_linear is {pwm_linear}")
         print(f"pwm_angular is {pwm_angular}")
 
@@ -62,6 +58,7 @@ class Converter_Node(Node):
         
         self.publisher.publish(rc_msg)
 
+
 def main(args=None):
     rclpy.init(args=args)
     node = Converter_Node()
@@ -69,10 +66,8 @@ def main(args=None):
     node.destroy_node()
     rclpy.shutdown()
 
-
 if __name__ == '__main__':
     main()
-
 
             
 

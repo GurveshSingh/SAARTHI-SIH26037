@@ -1,4 +1,3 @@
-
 from launch import LaunchDescription
 from launch_ros.actions import Node
 from launch.actions import IncludeLaunchDescription
@@ -7,8 +6,8 @@ from launch.actions import TimerAction
 import os
 from ament_index_python.packages import get_package_share_directory
 
-#extra addition, meine kiya
 from launch_ros.actions import SetParameter
+
 
 def generate_launch_description():
     namePackage = 'lirovo'
@@ -41,83 +40,41 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             arguments=['0', '0', '0.5', '0', '0', '0', 'base_link', 'lidar'],
-            parameters=[{'use_sim_time': False}], #False
+            parameters=[{'use_sim_time': False}],
             name='static_tf_lidar'
         ),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             arguments=['0', '0', '0', '1.5708', '0', '0', 'base_link', 'base_footprint'],
-            parameters=[{'use_sim_time': False}], #False
-            # name='static_tf_lidar' both same name??
+            parameters=[{'use_sim_time': False}],
             name = 'static_tf_basefootprint'
         ),
-        # Node(
-        #     package='lirovo',
-        #     executable='pointcloud_processor',
-        #     name='pointcloud_processor',
-        #     output='screen',
-        #     parameters=[{'use_sim_time': True}]
-        # ),
         Node(
             package='pointcloud_to_laserscan',
             executable='pointcloud_to_laserscan_node',
             name='pointcloud_to_laserscan',
             parameters=[{
                 'target_frame': 'base_link',
-                'transform_tolerance': 0.05, #0.5,
-                'min_height': 0.2 , #-0.3,
-                'max_height': 1.0 , #1.0,
+                'transform_tolerance': 0.05,
+                'min_height': 0.2 ,
+                'max_height': 1.0 ,
                 'angle_min': -3.14159,
                 'angle_max': +3.14159,
                 'angle_increment': 0.00872665,
-                'scan_time': 0.3, #0.8,
+                'scan_time': 0.3,
                 'range_min': 0.1,
                 'range_max': 200.0,
                 'use_inf': True,
                 'inf_epsilon': 1.0,
                 'queue_size': 50,
-                'use_sim_time':False, #False,
+                'use_sim_time':False,
             }],
             remappings=[
                 ('cloud_in', '/bf_lidar/point_cloud_out'),
                 ('scan', '/scan'),
             ],
         ),
-        # Node(
-        #     package='tf2_ros',
-        #     executable='static_transform_publisher',
-        #     arguments=['0', '0', '0', '0', '0', '0', 'map', 'odom'],
-        #     name='static_tf_odom'
-        # ),
-        # Node(
-        #     package='lirovo',
-        #     executable='mavros_bridge',
-        #     name='mavros_bridge',
-        #     output='screen',
-        #     parameters=[{'use_sim_time':False}] #False
-        # ),
-        # THE MISSING ENGINE: Start GenZ-ICP to generate odometry from the bag
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource(
-        #         os.path.join(get_package_share_directory('genz_icp'), 'launch', 'odometry.launch.py') # Make sure this filename is correct!
-        #     ),
-        #     launch_arguments={
-        #         # 'topic': '/bf_lidar/point_cloud_out', # <--- REPLACE WITH YOUR BAG'S PC2 TOPIC
-        #         'publish_odom_tf': 'false',            # Let EKF handle the TF
-        #         'use_sim_time': 'false'
-        #     }.items()
-        # ),
-        #vins
-        # IncludeLaunchDescription(
-        # PythonLaunchDescriptionSource(
-        #     os.path.join(get_package_share_directory('vins'), 'launch', 'euroc.launch.py')
-        # ),
-        # launch_arguments={
-        #     # If you want to use a different config than the default in that file:
-        #     'config_path': os.path.join(get_package_share_directory('vins'), 'config', 'realsense_d435i', 'realsense_stereo_imu_config.yaml')
-        # }.items()
-        # ), 
         
         Node(
         package='robot_localization',
@@ -129,34 +86,7 @@ def generate_launch_description():
             'config', 'localization.yaml')],
         ),
         
-        # Node(
-        #     package='lirovo',
-        #     executable='navigator',
-        #     name='navigator',
-        #     output='screen',
-        #     parameters=[{'use_sim_time':False}] #False
-        # ),
-        # Node(
-        #     package='lirovo',
-        #     executable='converter',
-        #     name='converter',
-        #     output='screen',
-        #     parameters=[{'use_sim_time':False}] #False
-        # ),
-        # TimerAction(
-        #     period=1.0,
-        #     actions=[
-        #         Node(
-        #             package='slam_toolbox',
-        #             executable='async_slam_toolbox_node',
-        #             name='slam_toolbox',
-        #             output='screen',
-        #             parameters=[slam_params_path],
-        #         ),
-        #     ]
-        # ),      
-        # 
-        SetParameter(name='use_sim_time', value=False), #extra addition, meine kiya 
+        SetParameter(name='use_sim_time', value=False),
   
             TimerAction(
         period=1.0,
@@ -166,12 +96,10 @@ def generate_launch_description():
             executable='async_slam_toolbox_node',
             name='slam_toolbox',
             output='screen',
-            # We separate the YAML and the explicit dictionary
             parameters=[
                 slam_params_path, 
-                {'use_sim_time':False} # This MUST be a separate dictionary entry
+                {'use_sim_time':False}
             ],
-            # HARD OVERRIDE: Force it at the command line level
             arguments=['--ros-args', '-p', 'use_sim_time:=False'] 
         ),
     ]

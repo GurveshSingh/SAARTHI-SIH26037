@@ -3,7 +3,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from mavros_msgs.msg import OverrideRCIn
 
-RC_PASSTHROUGH = 65535   # tells the FCU to ignore this channel
+RC_PASSTHROUGH = 65535
 
 
 def map_value(value: float,
@@ -20,7 +20,6 @@ class Converter(Node):
     def __init__(self):
         super().__init__('conversion_node')
 
-        # ── Parameters ────────────────────────────────────────────────────
         self.declare_parameter('pwm_min',              1051)
         self.declare_parameter('pwm_max',              1951)
         self.declare_parameter('pwm_neutral',          1501)
@@ -28,14 +27,13 @@ class Converter(Node):
         self.declare_parameter('intercept_linear',     140)
         self.declare_parameter('slope_angular',        80)
         self.declare_parameter('intercept_angular',    250)
-        self.declare_parameter('linear_vel_max',       1.0)   # m/s
-        self.declare_parameter('angular_vel_max',      2.0)   # rad/s
-        self.declare_parameter('ch_throttle',          1)     # CH2 (0-based)
-        self.declare_parameter('ch_steering',          0)     # CH1 (0-based)
+        self.declare_parameter('linear_vel_max',       1.0)
+        self.declare_parameter('angular_vel_max',      2.0)
+        self.declare_parameter('ch_throttle',          1)
+        self.declare_parameter('ch_steering',          0)
 
         self._read_params()
 
-        # ── Pub / Sub ─────────────────────────────────────────────────────
         self.pub = self.create_publisher(OverrideRCIn, '/mavros/rc/override', 10)
         self.sub = self.create_subscription(Twist, '/bcr_bot/cmd_vel', self.callback, 10)
 
@@ -44,7 +42,6 @@ class Converter(Node):
             f'PWM [{self.pwm_min}-{self.pwm_max}] neutral={self.pwm_neutral} | '
             f'CH{self.ch_throttle + 1}=throttle  CH{self.ch_steering + 1}=steering'
         )
-
 
     def _read_params(self):
         self.pwm_min            =   self.get_parameter('pwm_min').value
@@ -59,7 +56,6 @@ class Converter(Node):
         self.ch_throttle        =   self.get_parameter('ch_throttle').value
         self.ch_steering        =   self.get_parameter('ch_steering').value
 
-
     def vel_to_pwm(self, vel: float, slope, intercept, pwm_max, pwm_min) -> int:
 
         pwm = (slope * vel) + intercept
@@ -72,12 +68,10 @@ class Converter(Node):
 
         return int(round(pwm))
 
-
     def callback(self, msg: Twist):
 
-        channels = [RC_PASSTHROUGH] * 18  # OverrideRCIn has 18 channels (MAVLink spec)
+        channels = [RC_PASSTHROUGH] * 18
 
-        # Throttle: forward (+) / reverse (-)
         pwm_gain_x = self.vel_to_pwm(abs(msg.linear.x), self.slope_linear, self.intercept_linear, self.pwm_max, self.pwm_min)
 
         if msg.linear.x > 0:
@@ -91,7 +85,6 @@ class Converter(Node):
 
         channels[self.ch_throttle] = pwm_x
 
-        # Steering: left (+angular.z) / right (-angular.z)
         pwm_gain_z = self.vel_to_pwm(abs(msg.angular.z), self.slope_angular, self.intercept_angular, self.pwm_max, self.pwm_min)
 
         if msg.angular.z > 0:
@@ -125,7 +118,6 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

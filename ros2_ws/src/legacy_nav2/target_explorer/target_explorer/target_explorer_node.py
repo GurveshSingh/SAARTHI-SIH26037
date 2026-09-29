@@ -80,7 +80,6 @@ class RayBackoffStats:
 
 
 class TargetExplorerNode(Node):
-    """Select safe intermediate map-frame goals and send them to Nav2."""
 
     def __init__(self):
         super().__init__('target_explorer_node')
@@ -1161,7 +1160,7 @@ class TargetExplorerNode(Node):
 
         try:
             goal_handle = future.result()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self.get_logger().error(
                 'Failed to send NavigateToPose goal: {}'.format(exc)
             )
@@ -1195,7 +1194,7 @@ class TargetExplorerNode(Node):
 
         try:
             wrapped_result = future.result()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self.get_logger().error(
                 'NavigateToPose result failed: {}'.format(exc)
             )
@@ -1759,7 +1758,6 @@ def main(args=None):
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

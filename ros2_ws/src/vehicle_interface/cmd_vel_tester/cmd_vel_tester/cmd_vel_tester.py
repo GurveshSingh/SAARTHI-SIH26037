@@ -8,7 +8,6 @@ from sensor_msgs.msg import Imu
 
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
-
 qos = QoSProfile(
     reliability=ReliabilityPolicy.BEST_EFFORT,
     history=HistoryPolicy.KEEP_LAST,
@@ -50,7 +49,6 @@ class CmdVelSequencer(Node):
         self.current_yaw_rate = msg.angular_velocity.z
 
     def save_stage_stats(self):
-        """Compute and save statistics for the current stage."""
 
         if len(self.current_stage_samples) == 0:
             return
@@ -76,7 +74,6 @@ class CmdVelSequencer(Node):
 
         stage = int(elapsed // self.time)
 
-        # Detect stage change
         if stage != self.last_stage:
 
             if self.last_stage != -1:
@@ -85,27 +82,22 @@ class CmdVelSequencer(Node):
             self.current_stage_samples = []
             self.last_stage = stage
 
-        # Stage 0
         if elapsed < self.time * 1.0:
             cmd.angular.z = 0.75
             self.current_stage_samples.append(self.current_yaw_rate)
 
-        # Stage 1
         elif elapsed < self.time * 2.0:
             cmd.angular.z = -0.75
             self.current_stage_samples.append(self.current_yaw_rate)
 
-        # Stage 2
         elif elapsed < self.time * 3.0:
             cmd.angular.z = 0.5
             self.current_stage_samples.append(self.current_yaw_rate)
 
-        # Stage 3
         elif elapsed < self.time * 4.0:
             cmd.angular.z = -0.25
             self.current_stage_samples.append(self.current_yaw_rate)
 
-        # Stage 4
         elif elapsed < self.time * 5.0:
             cmd.angular.z = 0.25
             self.current_stage_samples.append(self.current_yaw_rate)
@@ -114,7 +106,6 @@ class CmdVelSequencer(Node):
 
             if not self.final_printed:
 
-                # Save statistics for the final stage
                 self.save_stage_stats()
 
                 self.get_logger().info("")
@@ -152,7 +143,6 @@ def main(args=None):
 
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

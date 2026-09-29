@@ -26,7 +26,6 @@ print(datetime.now())
 print(socket.gethostname())
 print(f"ROS_DOMAIN_ID={os.getenv('ROS_DOMAIN_ID','0')}")
 
-
 NAV2_NODES = [
     '/planner_server',
     '/controller_server',
@@ -361,7 +360,6 @@ def main():
     node = StartupReport()
 
     rclpy.spin(node)
-
 
 if __name__ == '__main__':
     main()

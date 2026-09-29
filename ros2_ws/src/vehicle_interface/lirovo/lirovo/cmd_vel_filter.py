@@ -11,7 +11,7 @@ class CmdVelFilter(Node):
     def __init__(self):
         super().__init__('cmd_vel_filter')
 
-        self.threshold = 0.5  # rad/s
+        self.threshold = 0.5
 
         self.sub = self.create_subscription(
             Twist,
@@ -34,16 +34,13 @@ class CmdVelFilter(Node):
 
         out_msg = Twist()
 
-        # Copy linear velocities
         out_msg.linear.x = msg.linear.x
         out_msg.linear.y = msg.linear.y
         out_msg.linear.z = msg.linear.z
 
-        # Copy angular velocities
         out_msg.angular.x = msg.angular.x
         out_msg.angular.y = msg.angular.y
 
-        # Filter angular.z
         if abs(msg.angular.z) < self.threshold:
             out_msg.angular.z = 0.0
         else:
@@ -64,7 +61,6 @@ def main(args=None):
 
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

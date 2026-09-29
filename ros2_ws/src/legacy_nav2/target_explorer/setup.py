@@ -3,7 +3,6 @@ from glob import glob
 
 from setuptools import setup
 
-
 package_name = 'target_explorer'
 
 setup(

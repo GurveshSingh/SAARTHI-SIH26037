@@ -56,6 +56,22 @@ run("saarthi_buses.m")   % creates EgoState, Detection, DetectionList, TrackedOb
                          % Trajectory and VehicleCommand in the base workspace
 ```
 
+**Enumerations used in the buses**
+
+| `class_id` | Class | | `BehaviorCmd.state` | State |
+|---|---|---|---|---|
+| 1 | car | | 1 | Cruise |
+| 2 | bus | | 2 | Follow |
+| 3 | truck | | 3 | Pass |
+| 4 | auto-rickshaw | | 4 | Yield |
+| 5 | two-wheeler | | 5 | Creep |
+| 6 | bicycle | | 6 | Go |
+| 7 | pedestrian | | 7 | Merge |
+| 8 | pushcart | | 8 | EmergencyStop |
+| 9 | cattle | | | |
+
+Units: positions in metres (map frame), angles in radians, speeds in m/s, time in seconds (sim time). Fixed-size arrays with a `count` field keep the model ready for code generation. Limits: 64 detections, 64 tracks, 15 prediction steps of 0.2 s (`dt`), and 50 trajectory points. `stop_s` is NaN when there is no stop point.
+
 ## Class-aware prediction
 
 Every tracked agent is rolled forward 15 steps of 0.2 s. Each step's capsule radius grows at a per-class rate, so the planner keeps the most distance from the least predictable road users:

@@ -1,49 +1,4 @@
 #!/usr/bin/env python3
-"""
-cmd_vel → PWM Mapper for ROS2 Humble
-======================================
-Subscribes to: /cmd_vel              (geometry_msgs/msg/Twist)
-Publishes to:  /mavros/rc/override   (mavros_msgs/msg/OverrideRCIn)
-
-Angular-Z (steering)
----------------------
-PWM range: 1501 (zero/stop) | 1701 (min positive rotation) → 2101 (max positive angular-z)
-Mapping is derived from empirical az_midpoint calibration data
-using high-resolution piecewise linear interpolation over all 41 PWM steps.
-
-The az_mean_window column is used for the velocity axis because it is
-monotone-smoothed; raw az_midpoint is kept as reference only.
-
-Linear-X (throttle)
---------------------
-PWM = 1500 ± (slope_linear * |linear.x| + intercept_linear)
-Clamped to [pwm_min, pwm_max].  Forward → above 1500, reverse → below 1500.
-
-Usage
------
-ros2 run <your_package> az_vel_to_pwm
-
-Parameters (ROS2)
------------------
-  Angular-Z / steering:
-    pwm_channel      : RC channel index (0-based), default 0
-    deadband_vel     : |vel| below which PWM = 1501 (stop), default 0.03 rad/s
-    publish_rate     : Hz, default 50
-    invert_direction : flip sign of incoming angular.z, default False
-
-  Linear-X / throttle:
-    ch_throttle      : RC channel index (0-based), default 1
-    pwm_min          : lower PWM clamp, default 1051
-    pwm_max          : upper PWM clamp, default 1951
-    pwm_neutral      : stop PWM for throttle, default 1501
-    slope_linear     : throttle gain slope, default 314
-    intercept_linear : throttle gain intercept, default 140
-    linear_vel_max   : m/s, used for reference only, default 1.0
-
-  Timeout:
-    cmd_timeout      : seconds of /cmd_vel silence before RC override stops,
-                       default 0.2 s (~10 missed cycles at 50 Hz)
-"""
 
 import time
 
@@ -53,26 +8,15 @@ from mavros_msgs.msg import OverrideRCIn
 from geometry_msgs.msg import Twist
 import numpy as np
 
-
-# ---------------------------------------------------------------------------
-# Calibration data  (1701–2101 range, positive angular-z only)
-#
-# Columns: PWM  |  az_midpoint (rad/s)  |  az_mean_window (rad/s)
-#
-# az_mean_window is the smoothed velocity that corresponds to each PWM step.
-# It is used as the velocity axis for the piecewise mapping because it is
-# monotone after a running-max pass (raw az_midpoint has local dips).
-# ---------------------------------------------------------------------------
 _RAW_TABLE = [
-    # PWM    az_midpoint    az_mean_window
     (1701, +0.0049694,  +0.0116746),
     (1711, +0.2274574,  +0.0979008),
     (1721, +0.1737052,  +0.1362236),
     (1731, +0.4751986,  +0.2596646),
-    (1741, +0.1476481,  +0.0829669),  # local dip — resolved by monotone pass
+    (1741, +0.1476481,  +0.0829669),
     (1751, +0.3071875,  +0.2271002),
     (1761, +0.4833515,  +0.3657181),
-    (1771, +0.6804709,  +0.2407416),  # local dip — resolved by monotone pass
+    (1771, +0.6804709,  +0.2407416),
     (1781, +0.5793779,  +0.4451320),
     (1791, +1.0248756,  +0.5320357),
     (1801, +1.1032788,  +0.5747312),
@@ -96,40 +40,26 @@ _RAW_TABLE = [
     (1981, +2.5835660,  +1.4988349),
     (1991, +2.6570659,  +1.5663777),
     (2001, +2.7864964,  +1.6056126),
-    (2011, +2.6721101,  +1.5999318),  # slight dip — resolved by monotone pass
+    (2011, +2.6721101,  +1.5999318),
     (2021, +2.7697933,  +1.6120573),
     (2031, +2.5703838,  +1.6245543),
-    (2041, +2.7050591,  +1.5916198),  # slight dip — resolved by monotone pass
+    (2041, +2.7050591,  +1.5916198),
     (2051, +2.7829666,  +1.6222680),
-    (2061, +2.6038892,  +1.6164773),  # slight dip — resolved by monotone pass
+    (2061, +2.6038892,  +1.6164773),
     (2071, +2.8462231,  +1.6217815),
     (2081, +2.7862916,  +1.6369924),
-    (2091, +2.7955372,  +1.6103469),  # slight dip — resolved by monotone pass
+    (2091, +2.7955372,  +1.6103469),
     (2101, +2.5281668,  +1.6286706),
 ]
 
-_PWM_NEUTRAL = 1501   # zero angular-z (full stop)
-_PWM_MIN_POS = 1701   # threshold where positive rotation begins
+_PWM_NEUTRAL = 1501
+_PWM_MIN_POS = 1701
 _PWM_MAX     = 2101
 
 
-# ---------------------------------------------------------------------------
-# Build piecewise-linear segments: vel → PWM
-#
-# Strategy
-# --------
-# 1. Use az_mean_window as the velocity axis (smoother than az_midpoint).
-# 2. Enforce strict monotonicity via a running-maximum pass so every
-#    segment has vel_lo < vel_hi (required for a proper inverse mapping).
-# 3. Every consecutive monotone pair becomes one piecewise segment.
-#    Non-monotone points are skipped; the surrounding segments span them.
-#
-# Result: up to 41 piecewise linear segments, one per PWM step pair.
-# ---------------------------------------------------------------------------
-
 def _build_segments():
     pwms = [r[0] for r in _RAW_TABLE]
-    vels = [r[2] for r in _RAW_TABLE]   # az_mean_window column
+    vels = [r[2] for r in _RAW_TABLE]
 
     mono_pwm = [pwms[0]]
     mono_vel = [vels[0]]
@@ -140,54 +70,30 @@ def _build_segments():
             running_max = v
             mono_pwm.append(p)
             mono_vel.append(v)
-        # Non-monotone point: skip; the span is covered by the previous segment.
 
     segs = []
     for i in range(len(mono_pwm) - 1):
         segs.append((
-            mono_vel[i],       # vel_lo
-            mono_vel[i + 1],   # vel_hi
-            mono_pwm[i],       # pwm_lo
-            mono_pwm[i + 1],   # pwm_hi
+            mono_vel[i],
+            mono_vel[i + 1],
+            mono_pwm[i],
+            mono_pwm[i + 1],
         ))
     return segs
 
-
 _SEGMENTS = _build_segments()
-_VEL_MIN  = _SEGMENTS[0][0]    # velocity that corresponds to PWM 1701
-_VEL_MAX  = _SEGMENTS[-1][1]   # maximum calibrated velocity
+_VEL_MIN  = _SEGMENTS[0][0]
+_VEL_MAX  = _SEGMENTS[-1][1]
 
-
-# ---------------------------------------------------------------------------
-# Core mapping function
-# ---------------------------------------------------------------------------
 
 def vel_to_pwm(angular_z: float) -> int:
-    """
-    Convert a commanded angular-z velocity (rad/s) to a PWM value.
-
-    Piecewise linear interpolation across all calibration segments.
-
-    Parameters
-    ----------
-    angular_z : float
-        Positive angular-z velocity in rad/s.
-        Values at or below _VEL_MIN  → PWM 1701 (slowest positive step).
-        Values at or above _VEL_MAX  → PWM 2101 (maximum).
-
-    Returns
-    -------
-    int
-        PWM in microseconds, clamped to [1701, 2101].
-    """
     vel = float(angular_z)
 
     if vel <= _VEL_MIN:
-        return _PWM_MIN_POS   # slowest positive rotation (1701)
+        return _PWM_MIN_POS
     if vel >= _VEL_MAX:
         return _PWM_MAX
 
-    # Binary search for the enclosing segment
     lo, hi = 0, len(_SEGMENTS) - 1
     while lo < hi:
         mid = (lo + hi) // 2
@@ -206,21 +112,11 @@ def vel_to_pwm(angular_z: float) -> int:
     return int(round(float(np.clip(pwm, _PWM_MIN_POS, _PWM_MAX))))
 
 
-# ---------------------------------------------------------------------------
-# Linear-X throttle helper  (ported from converter.py)
-# ---------------------------------------------------------------------------
-
 def _linear_vel_to_pwm_gain(vel: float,
                              slope: float,
                              intercept: float,
                              pwm_max: int,
                              pwm_min: int) -> int:
-    """
-    Compute the unsigned PWM gain for a given linear velocity magnitude.
-
-    pwm_gain = slope * |vel| + intercept, clamped to [0, pwm_max - 1500].
-    The caller adds/subtracts this from 1500 to get the final throttle PWM.
-    """
     gain = slope * vel + intercept
 
     if gain > pwm_max - 1500:
@@ -232,47 +128,28 @@ def _linear_vel_to_pwm_gain(vel: float,
     return int(round(gain))
 
 
-# ---------------------------------------------------------------------------
-# ROS2 Node
-# ---------------------------------------------------------------------------
-
 class CmdVelToPwmNode(Node):
-    """
-    Listens to /cmd_vel (geometry_msgs/Twist), converts angular.z to a
-    PWM value via the piecewise calibration map, and publishes it on the
-    configured channel of /mavros/rc/override.
-
-    angular.z = 0 or within deadband → PWM 1501 (full stop)
-    angular.z > 0  → PWM 1701–2101  (positive rotation, calibrated)
-    Negative angular.z  → symmetric mirror below 1501 (magnitude mirrored)
-
-    Publishing stops automatically when /cmd_vel has been silent for longer
-    than cmd_timeout seconds, allowing MAVROS/FC failsafe to take over.
-    Publishing resumes as soon as a new /cmd_vel message arrives.
-    """
 
     def __init__(self):
         super().__init__('az_vel_to_pwm')
 
-        # --- ROS2 parameters (angular-z / steering) ---
-        self.declare_parameter('pwm_channel',      0)      # 0-based RC channel index
-        self.declare_parameter('deadband_vel',     0.03)   # rad/s
-        self.declare_parameter('publish_rate',     50.0)   # Hz
-        self.declare_parameter('invert_direction', False)  # flip sign of angular.z
+        self.declare_parameter('pwm_channel',      0)
+        self.declare_parameter('deadband_vel',     0.03)
+        self.declare_parameter('publish_rate',     50.0)
+        self.declare_parameter('invert_direction', False)
 
         self._channel  = self.get_parameter('pwm_channel').value
         self._deadband = self.get_parameter('deadband_vel').value
         self._rate_hz  = self.get_parameter('publish_rate').value
         self._invert   = self.get_parameter('invert_direction').value
 
-        # --- ROS2 parameters (linear-x / throttle) ---
-        self.declare_parameter('ch_throttle',        1)      # 0-based RC channel index
+        self.declare_parameter('ch_throttle',        1)
         self.declare_parameter('pwm_min',            1051)
         self.declare_parameter('pwm_max',            1951)
         self.declare_parameter('pwm_neutral',        1501)
         self.declare_parameter('slope_linear',       314)
         self.declare_parameter('intercept_linear',   140)
-        self.declare_parameter('linear_vel_max',     1.0)   # m/s
+        self.declare_parameter('linear_vel_max',     1.0)
 
         self._ch_throttle        = self.get_parameter('ch_throttle').value
         self._pwm_min            = self.get_parameter('pwm_min').value
@@ -282,23 +159,19 @@ class CmdVelToPwmNode(Node):
         self._intercept_linear   = self.get_parameter('intercept_linear').value
         self._linear_vel_max     = self.get_parameter('linear_vel_max').value
 
-        # --- ROS2 parameter (timeout) ---
-        self.declare_parameter('cmd_timeout', 0.2)   # seconds of silence → stop publishing
+        self.declare_parameter('cmd_timeout', 0.2)
         self._cmd_timeout = self.get_parameter('cmd_timeout').value
 
-        # --- State ---
-        self._latest_pwm: int          = _PWM_NEUTRAL        # steering (angular-z)
-        self._latest_throttle_pwm: int = self._pwm_neutral   # throttle (linear-x)
-        self._last_cmd_time: float     = 0.0                 # monotonic time of last /cmd_vel
+        self._latest_pwm: int          = _PWM_NEUTRAL
+        self._latest_throttle_pwm: int = self._pwm_neutral
+        self._last_cmd_time: float     = 0.0
 
-        # --- Publisher ---
         self._rc_pub = self.create_publisher(
             OverrideRCIn,
             '/mavros/rc/override',
             10
         )
 
-        # --- Subscriber ---
         self._cmd_sub = self.create_subscription(
             Twist,
             '/cmd_vel1',
@@ -306,7 +179,6 @@ class CmdVelToPwmNode(Node):
             10
         )
 
-        # --- Periodic publish timer ---
         self._timer = self.create_timer(
             1.0 / self._rate_hz,
             self._publish_rc
@@ -322,12 +194,9 @@ class CmdVelToPwmNode(Node):
             f'{len(_SEGMENTS)} piecewise segments'
         )
 
-    # ------------------------------------------------------------------
     def _cmd_vel_callback(self, msg: Twist):
-        # Stamp the arrival time so _publish_rc can detect silence
         self._last_cmd_time = time.monotonic()
 
-        # ---- Throttle: linear.x → PWM (ported from converter.py) --------
         pwm_gain_x = _linear_vel_to_pwm_gain(
             abs(msg.linear.x),
             self._slope_linear,
@@ -345,52 +214,36 @@ class CmdVelToPwmNode(Node):
         else:
             self._latest_throttle_pwm = 1500
 
-        # ---- Steering: angular.z → PWM (piecewise calibration map) ------
         az = msg.angular.z
 
         if self._invert:
             az = -az
 
         if abs(az) < self._deadband:
-            # Within deadband → full stop
-            self._latest_pwm = _PWM_NEUTRAL   # 1501
+            self._latest_pwm = _PWM_NEUTRAL
 
         elif az >= 0.0:
-            # Positive angular-z: direct calibration lookup (1701–2101)
             self._latest_pwm = vel_to_pwm(az)
 
         else:
-            # Negative angular-z: mirror below 1501.
-            # vel_to_pwm gives a PWM in [1701,2101]; mirror offset above 1701 below 1501.
-            # NOTE: replace with proper negative-range cal (1251–1501) when available.
             pos_pwm = vel_to_pwm(-az)
             delta   = pos_pwm - _PWM_MIN_POS
-            self._latest_pwm = max(1000, _PWM_NEUTRAL - delta)  # mirror below 1501
+            self._latest_pwm = max(1000, _PWM_NEUTRAL - delta)
 
-    # ------------------------------------------------------------------
     def _publish_rc(self):
-        # Never received a command yet
         if self._last_cmd_time == 0.0:
             return
 
-        # /cmd_vel has gone silent — stop publishing RC override so the
-        # FC/MAVROS failsafe can take over cleanly
         if (time.monotonic() - self._last_cmd_time) > self._cmd_timeout:
             return
 
         msg      = OverrideRCIn()
-        # channels: 18-element list; 65535 means "do not override this channel"
         channels = [65535] * 18
-        channels[self._channel]     = self._latest_pwm           # steering (angular-z)
-        channels[self._ch_throttle] = self._latest_throttle_pwm  # throttle (linear-x)
+        channels[self._channel]     = self._latest_pwm
+        channels[self._ch_throttle] = self._latest_throttle_pwm
         msg.channels = channels
         self._rc_pub.publish(msg)
 
-
-# ---------------------------------------------------------------------------
-# Standalone diagnostics — run without ROS2
-#   python3 az_vel_to_pwm.py --diag
-# ---------------------------------------------------------------------------
 
 def _print_diagnostic_table():
     print(f"\n{'Vel (rad/s)':>14}  {'PWM':>6}")
@@ -403,10 +256,6 @@ def _print_diagnostic_table():
         print(f"  [{i:02d}]  {vl:.6f} → {vh:.6f}  :  {pl} → {ph}")
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 def main(args=None):
     rclpy.init(args=args)
     node = CmdVelToPwmNode()
@@ -417,7 +266,6 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
 
 if __name__ == '__main__':
     import sys

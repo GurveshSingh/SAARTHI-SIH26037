@@ -7,6 +7,7 @@ from nav_msgs.msg import Odometry
 from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
 
+
 class MavrosOdomBridge(Node):
     def __init__(self):
         super().__init__('mavros_odom_bridge')
@@ -25,7 +26,7 @@ class MavrosOdomBridge(Node):
             qos
         )
 
-        timer_period = 0.1  # 50 ms = 20 Hz
+        timer_period = 0.1
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
     def odom_callback(self, odom_msg: Odometry):
@@ -35,10 +36,8 @@ class MavrosOdomBridge(Node):
         if self.latest_odom_msg is None:
             return
 
-        # Get current time for both /odom and /tf
         current_time = self.get_clock().now().to_msg()
 
-        # Publish Odometry at fixed rate
         odom = Odometry()
         odom.header.stamp = current_time
         odom.header.frame_id = 'odom'
@@ -47,7 +46,6 @@ class MavrosOdomBridge(Node):
         odom.twist = self.latest_odom_msg.twist
         self.odom_pub.publish(odom)
 
-        # Publish Transform at fixed rate
         tf = TransformStamped()
         tf.header.stamp = current_time
         tf.header.frame_id = 'odom'
@@ -60,36 +58,11 @@ class MavrosOdomBridge(Node):
         self.tf_broadcaster.sendTransform(tf)
 
 
-# class Nav2MavrosVelocity(Node):
-#     def __init__(self):
-#         super().__init__('nav2_mavros_velocity')
-#         self.subscription = self.create_subscription(
-#             Twist,
-#             '/cmd_vel',
-#             self.cmd_vel_callback,
-#             10
-#         )
-#         self.mavros_pub = self.create_publisher(
-#             Twist,
-#             '/mavros/setpoint_velocity/cmd_vel_unstamped',
-#             10
-#         )
-
-#     def cmd_vel_callback(self, msg: Twist):
-#         twist_stamped = TwistStamped()
-#         twist_stamped.header.stamp = self.get_clock().now().to_msg()
-#         twist_stamped.header.frame_id = 'base_link'
-#         twist_stamped.twist = msg
-#         self.mavros_pub.publish(twist_stamped)
-
-
 def main(args=None):
     rclpy.init(args=args)
     odom_bridge = MavrosOdomBridge()
-    #vel_bridge = Nav2MavrosVelocity()
     executor = rclpy.executors.MultiThreadedExecutor()
     executor.add_node(odom_bridge)
-    #executor.add_node(vel_bridge)
 
     try:
         executor.spin()
@@ -97,7 +70,6 @@ def main(args=None):
         print("Shutting down MAVROS Bridge...")
     finally:
         odom_bridge.destroy_node()
-        #vel_bridge.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':

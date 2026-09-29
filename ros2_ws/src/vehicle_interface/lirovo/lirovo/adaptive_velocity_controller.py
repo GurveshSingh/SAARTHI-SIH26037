@@ -6,6 +6,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
+
 class AdaptiveVelocityController(Node):
     def __init__(self):
         super().__init__("adaptive_velocity_controller")
@@ -31,10 +32,9 @@ class AdaptiveVelocityController(Node):
         self.initial_gain_left = 0.55
         self.initial_gain_right = 0.55
 
-        self.reset_threshold_v = 0.4      # m/s
-        self.reset_threshold_w = 0.4      # rad/s
+        self.reset_threshold_v = 0.4
+        self.reset_threshold_w = 0.4
 
-        # Initialize gains
         self.gain_v = self.initial_gain_v
         self.gain_left = self.initial_gain_left
         self.gain_right = self.initial_gain_right
@@ -55,18 +55,13 @@ class AdaptiveVelocityController(Node):
 
     def cmd_callback(self, msg):
 
-        # Check if desired velocity changed significantly
-        # Check if desired velocity changed significantly
         
         if abs(msg.linear.x - self.prev_des_v) > self.reset_threshold_v:
 
-            # Reset learned gain
             self.gain_v = self.initial_gain_v
 
-            # Reset slew-rate memory
             self.prev_v = 0.0
 
-            # Reset filtered odometry
             self.v_filt = 0.0
 
             self.get_logger().info(
@@ -74,18 +69,14 @@ class AdaptiveVelocityController(Node):
                 f"{self.prev_des_v:.2f} -> {msg.linear.x:.2f}"
             )
 
-
-        # Check if desired yaw rate changed significantly
         
         if abs(msg.angular.z - self.prev_des_w) > self.reset_threshold_w:
 
             self.gain_left = self.initial_gain_left
             self.gain_right = self.initial_gain_right
 
-            # Reset slew-rate memory
             self.prev_w = 0.0
 
-            # Reset filtered odometry
             self.w_filt = 0.0
             self.w_actual = None
 
@@ -102,14 +93,11 @@ class AdaptiveVelocityController(Node):
         self.des_v = msg.linear.x
         self.des_w = -1*msg.angular.z
 
-
     def odom_callback(self,msg):
         self.v_filt=self.alpha*msg.twist.twist.linear.x+(1-self.alpha)*self.v_filt
         self.v_actual=self.v_filt
         self.w_filt=self.alpha*msg.twist.twist.angular.z+(1-self.alpha)*self.w_filt
         self.w_actual=(-1)*self.w_filt
-
-
 
     def control_loop(self):
 
@@ -121,12 +109,10 @@ class AdaptiveVelocityController(Node):
         gw=self.gain_right if self.des_w>=0 else self.gain_left
         v_cmd=self.gain_v*self.des_v
 
-
         v_cmd = self.gain_v * self.des_v
 
         w_cmd = gw * self.des_w
 
-        # Slew-rate limiting
         v_cmd = self.prev_v + np.clip(
             v_cmd - self.prev_v,
             -self.dv_lim,
@@ -148,7 +134,6 @@ class AdaptiveVelocityController(Node):
         w_cmd=gw*self.des_w      
         w_cmd=self.prev_w+np.clip(w_cmd-self.prev_w,-self.dw_lim,self.dw_lim)
 
-
         self.prev_v=v_cmd
         self.prev_w=w_cmd
         v_cmd=float(np.clip(v_cmd,-self.max_v,self.max_v))
@@ -158,7 +143,6 @@ class AdaptiveVelocityController(Node):
         out.angular.z=w_cmd
         self.pub.publish(out)
 
-        # ---------- Linear adaptation ----------
         if abs(self.des_v) > self.dead_v and abs(self.v_actual) > self.dead_v:
 
             rv = np.clip(
@@ -178,7 +162,6 @@ class AdaptiveVelocityController(Node):
                 self.max_gain
             ))
 
-        # ---------- Angular adaptation ----------
         if abs(self.des_w) > self.dead_w and abs(self.w_actual) > self.dead_w:
 
             rw = np.clip(
@@ -227,6 +210,7 @@ class AdaptiveVelocityController(Node):
                 f"GL={self.gain_left:.3f} "
                 f"GR={self.gain_right:.3f}"
             )
+
 
 def main(args=None):
     rclpy.init(args=args)
